@@ -14,8 +14,8 @@ def load_models():
 
 tts, vocoder = load_models()
 
-# تقسيم النص إلى أجزاء أكبر (150 كلمة)
-def split_text(text, max_words=150):
+# تقسيم النص إلى أجزاء
+def split_text(text, max_words=100):
     words = text.split()
     return [' '.join(words[i:i+max_words]) for i in range(0, len(words), max_words)]
 
@@ -27,7 +27,7 @@ speed = st.slider("⚡ سرعة التشغيل", 0.5, 2.0, 1.0, 0.1)
 
 if st.button("🎧 استمع"):
     with st.spinner("⏳ جاري التحويل..."):
-        segments = split_text(text, max_words=150)
+        segments = split_text(text, max_words=100)
         final_waveform = []
 
         for segment in segments:
@@ -38,7 +38,6 @@ if st.button("🎧 استمع"):
         # دمج جميع الأجزاء الصوتية في موجة واحدة
         combined_waveform = torch.cat(final_waveform, dim=1)
 
-        # تطبيق السرعة المطلوبة
         new_sample_rate = int(22050 * speed)
         buffer = io.BytesIO()
         torchaudio.save(buffer, combined_waveform, new_sample_rate, format="wav")
