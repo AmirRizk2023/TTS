@@ -3,7 +3,7 @@ from speechbrain.pretrained import Tacotron2, HIFIGAN
 import torchaudio
 import torch
 import io
-import re
+import time
 
 # تحميل النماذج
 @st.cache_resource
@@ -21,38 +21,49 @@ text = st.text_area("💬 أدخل نصًا ليتم تحويله إلى صوت:
 # سرعة التشغيل
 speed = st.slider("⚡ سرعة التشغيل", 0.5, 2.0, 1.0, 0.1)
 
-# تقسيم النص إلى أجزاء صغيرة (100-150 كلمة)
-def split_text(text, max_words=150):
+# دالة لتقسيم النص إلى أجزاء صغيرة
+def split_text(text, max_words=100):
     words = text.split()
-    return [ ' '.join(words[i:i + max_words]) for i in range(0, len(words), max_words)]
+    return [' '.join(words[i:i+max_words]) for i in range(0, len(words), max_words)]
 
-# قائمة الأجزاء المقسمة
-split_texts = split_text(text)
+# تحويل النص إلى صوت
+def text_to_speech(text, speed):
+    # تقسيم النص إلى أجزاء
+    text_parts = split_text(text)
+    audio_parts = []
+    
+    for part in text_parts:
+        # تحويل النص إلى ميل سبيكترجرام
+        mel_output, mel_length, alignment = tts.encode_text(part)
+
+        # تحويل الميل إلى صوت
+        waveform = vocoder.decode_batch(mel_output)
+
+        # تطبيق تغيير السرعة
+        new_sample_rate = int(22050 * speed)
+
+        # حفظ الصوت في الذاكرة المؤقتة
+        buffer = io.BytesIO()
+        torchaudio.save(buffer, waveform.squeeze(1), new_sample_rate, format="wav")
+        buffer.seek(0)
+        audio_parts.append(buffer)
+    
+    return audio_parts
 
 if st.button("🎧 استمع"):
     with st.spinner("⏳ جاري التحويل..."):
-        # قائمة لاحتواء الموجات الصوتية
-        all_waveforms = []
+        start_time = time.time()
         
-        for part in split_texts:
-            # تحويل النص إلى ميل سبيكترجرام
-            mel_output, mel_length, alignment = tts.encode_text(part)
-            
-            # تحويل الميل إلى صوت
-            waveform = vocoder.decode_batch(mel_output)
-            
-            # تطبيق تغيير السرعة
-            new_sample_rate = int(22050 * speed)
-            
-            # إضافة الموجة إلى القائمة
-            all_waveforms.append(waveform.squeeze(1))
+        # تحويل النص إلى صوت
+        audio_parts = text_to_speech(text, speed)
         
-        # دمج الموجات الصوتية في ملف واحد
-        final_waveform = torch.cat(all_waveforms, dim=1)
+        # دمج الأجزاء الصوتية
+        combined_audio = io.BytesIO()
+        for part in audio_parts:
+            combined_audio.write(part.read())
         
-        # حفظ في ذاكرة مؤقتة لتشغيله مباشرة
-        buffer = io.BytesIO()
-        torchaudio.save(buffer, final_waveform, new_sample_rate, format="wav")
-        buffer.seek(0)
+        combined_audio.seek(0)
+        end_time = time.time()
         
-        st.audio(buffer, format="audio/wav")
+        st.audio(combined_audio, format="audio/wav")
+        st.write(f"⏱️ تم التحويل في {end_time - start_time:.2f} ثانية")
