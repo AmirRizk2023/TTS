@@ -2,3 +2,4 @@ torch
 streamlit
 speechbrain
 torchaudio
+soundfile
